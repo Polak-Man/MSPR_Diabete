@@ -5,11 +5,11 @@ import glob
 import os
 
 # Spécifiez le chemin du répertoire contenant les fichiers CSV
-input_directory = './DATASETS_ORIGINE/*.csv'  # Remplacez par le chemin de votre répertoire
-output_file = 'fichier_sortie_v2.csv'  # Nom du fichier de sortie
+INPUT_DIRECTORY = './DATASETS_ORIGINE/*.csv'  # Remplacez par le chemin de votre répertoire
+OUTPUT_FILE = 'fichier_sortie_v2.csv'  # Nom du fichier de sortie
 
 # Utiliser glob pour récupérer tous les fichiers CSV dans le répertoire spécifié
-csv_files = glob.glob(input_directory)
+csv_files = glob.glob(INPUT_DIRECTORY)
 
 # Vérifier si des fichiers CSV ont été trouvés
 if not csv_files:
@@ -42,6 +42,6 @@ else:
     print(df_fusionne.head())
 
     # Enregistrer le DataFrame fusionné dans un nouveau fichier CSV
-    df_fusionne.to_csv(output_file, index=False)
+    df_fusionne.to_csv(OUTPUT_FILE, index=False)
 
-    print(f"Données fusionnées enregistrées dans {output_file}")
+    print(f"Données fusionnées enregistrées dans {OUTPUT_FILE}")
