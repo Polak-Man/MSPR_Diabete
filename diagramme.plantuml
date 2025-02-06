@@ -1,0 +1,21 @@
+@startuml
+!define RECTANGLE class
+
+RECTANGLE "Données brutes" as RawData
+RECTANGLE "Extraction" as Extraction
+RECTANGLE "Transformation" as Transformation
+RECTANGLE "CSV" as CSVFormat
+RECTANGLE "JSON" as JSONFormat
+RECTANGLE "Chargement" as Loading
+RECTANGLE "Utilisateur" as User
+
+RawData --> Extraction : "Passage par"
+Extraction --> Transformation : "Extraction des données"
+Transformation --> CSVFormat : "Transformation en CSV"
+Transformation --> JSONFormat : "Transformation en JSON"
+CSVFormat --> Loading : "Chargement des données"
+JSONFormat --> Loading : "Chargement des données"
+Loading --> API : "Donne accès aux utilisateurs"
+API --> User : "Modifie/Supprime/Crée des données"
+
+@enduml

@@ -1,0 +1,2 @@
+Je veux ajouter une colonne "Diabete" et y mettre soit "Oui",
+ si sur la même ligne la valeur de "glybh" est supérieure ou égale à 6,5 sinon "Non".
