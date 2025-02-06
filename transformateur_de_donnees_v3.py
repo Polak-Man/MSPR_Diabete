@@ -1,11 +1,11 @@
 #Ajoute la colonne "Diabete" en focntion de la valeur de "glyhb" (6.5 ou plus = Oui, moins de 6.5 = Non)
 
-import pandas as pd
 import glob
 import os
+import pandas as pd
 
-# Spécifiez le chemin du répertoire contenant les fichiers CSV
-INPUT_DIRECTORY = './DATASETS_ORIGINE/*.csv'  # Remplacez par le chemin de votre répertoire
+# Spécifier le chemin du répertoire contenant les fichiers CSV
+INPUT_DIRECTORY = './DATASETS_ORIGINE/*.csv'  # Remplacer par le chemin du répertoire
 OUTPUT_FILE = 'fichier_sortie_v2.csv'  # Nom du fichier de sortie
 
 # Utiliser glob pour récupérer tous les fichiers CSV dans le répertoire spécifié
