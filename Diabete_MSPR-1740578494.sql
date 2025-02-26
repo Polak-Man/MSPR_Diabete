@@ -18,29 +18,24 @@ CREATE TABLE IF NOT EXISTS `medical_history` (
 	`bloodpressure` float,
 	`skinthickness` float,
 	`insulin` float,
-	`bmi` float,
+	`bodymassindex` float,
 	`diabetespedigreefunction` float,
-	`glyhb` float,
+	`glycatedhemoglobine` float,
 	PRIMARY KEY (`id`)
 );
 
 CREATE TABLE IF NOT EXISTS `cholesterol_bp` (
 	`id` int AUTO_INCREMENT NOT NULL UNIQUE,
-	`chol` float,
-	`stab.glu` float,
-	`hdl` float,
-	`ratio` float,
-	`bp.1s` float,
-	`bp.1d` float,
-	`bp.2s` float,
-	`bp.2d` float,
+	`cholesterol` float,
+	`stabilizedglucide` float,
+	`hughdensitylipoprotein` float,
+	`ratioglucoseinsuline` float,
 	PRIMARY KEY (`id`)
 );
 
 CREATE TABLE IF NOT EXISTS `diabetes_diagnosis` (
 	`id` int AUTO_INCREMENT NOT NULL UNIQUE,
-	`outcome` boolean NOT NULL,
-	`diabete` varchar(255) NOT NULL,
+	`diabete` boolean NOT NULL,
 	PRIMARY KEY (`id`)
 );
 
