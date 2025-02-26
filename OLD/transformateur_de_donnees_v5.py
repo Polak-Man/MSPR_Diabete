@@ -1,4 +1,5 @@
 # Ajoute la colonne "Diabete" en fonction de la valeur de "glyhb" (6.5 ou plus = Oui, moins de 6.5 = Non)
+# Ajoute également la colonne "Pays" en fonction de la valeur de "location"
 
 import glob
 import os
@@ -43,15 +44,34 @@ else:
         df_fusionne['gender'] = df_fusionne['gender'].replace(r'^\s*$', 'female', regex=True)  # Remplacer les chaînes vides par 'female'
     else:
         print("Avertissement : La colonne 'gender' est manquante dans le DataFrame fusionné.")
+        
+    # Remplacer les cases vides par "Na" dans le dataframe fusionné
+    df_fusionne = df_fusionne.fillna('Na')
 
     # Ajouter la colonne "Diabete"
-    df_fusionne['diabete'] = df_fusionne['glyhb'].apply(lambda x: 'Oui' if x >= 6.5 else 'Non')
+    if 'glyhb' in df_fusionne.columns:
+        df_fusionne['diabete'] = df_fusionne['glyhb'].apply(
+            lambda x: 'Oui' if pd.to_numeric(x, errors='coerce') >= 6.5 
+            else ('Non' if pd.notna(pd.to_numeric(x, errors='coerce')) else 'Na')
+        )
+    else:
+        print("Avertissement : La colonne 'glyhb' est manquante dans le DataFrame fusionné.")
+        df_fusionne['diabete'] = 'Na'
 
-    # Afficher les premières lignes du DataFrame avec la nouvelle colonne
-    print("Données avec la colonne 'Diabete' ajoutée :")
+    # Ajouter la colonne "Pregnant"
+    if 'pregnancies' in df_fusionne.columns:
+        df_fusionne['pregnant'] = df_fusionne['pregnancies'].apply(
+            lambda x: 'Na' if x == 'Na' else ('Yes' if pd.to_numeric(x, errors='coerce') > 0 else 'No')
+    )
+    else:
+        print("Avertissement : La colonne 'pregnancies' est manquante dans le DataFrame fusionné.")
+        df_fusionne['pregnant'] = 'Na'
+
+
+    # Afficher les premières lignes du DataFrame avec les nouvelles colonnes
+    print("Données avec les colonnes 'Diabete' et 'Pays' ajoutées :")
     print(df_fusionne.head())
 
-    # Enregistrer le DataFrame fusionné dans un nouveau fichier CSV
-    df_fusionne.to_csv(OUTPUT_FILE, index=False)
-
-    print(f"Données fusionnées enregistrées dans {OUTPUT_FILE}")
+# Enregistrer le DataFrame fusionné dans un nouveau fichier CSV
+df_fusionne.to_csv(OUTPUT_FILE, index=False)
+print(f"Données fusionnées enregistrées dans {OUTPUT_FILE}")
