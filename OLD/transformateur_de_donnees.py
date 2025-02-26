@@ -4,8 +4,10 @@ import os
 
 # Spécifiez le chemin du répertoire contenant les fichiers CSV
 # Par exemple, si vos fichiers sont dans un dossier nommé 'data', utilisez 'data/*.csv'
-input_directory = './DATASETS_ORIGINE/*.csv'  # Remplacez par le chemin de votre répertoire
-output_file = 'fichier_sortie.csv'  # Nom du fichier de sortie
+input_directory = (
+    "./DATASETS_ORIGINE/*.csv"  # Remplacez par le chemin de votre répertoire
+)
+output_file = "fichier_sortie.csv"  # Nom du fichier de sortie
 
 # Utiliser glob pour récupérer tous les fichiers CSV dans le répertoire spécifié
 csv_files = glob.glob(input_directory)
