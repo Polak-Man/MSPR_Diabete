@@ -2,6 +2,8 @@
 
 import glob
 import os
+import mysql.connector
+import csv
 import numpy as np
 import pandas as pd
 
@@ -92,3 +94,49 @@ else:
 # Enregistrer le DataFrame fusionné dans un nouveau fichier CSV
 df_fusionne.to_csv(OUTPUT_FILE, index=False)
 print(f"Données fusionnées enregistrées dans {OUTPUT_FILE}")
+
+# Connexion à la base de données
+db = mysql.connector.connect(
+    host="localhost",
+    user="root",
+    password="",
+    database="MSPR"
+)
+
+cursor = db.cursor()
+
+# Lire les en-têtes du CSV
+with open(OUTPUT_FILE, 'r') as file:
+    csv_reader = csv.reader(file)
+    headers = next(csv_reader)
+
+# Fonction pour échapper les noms de colonnes
+def escape_column_name(name):
+    return f"`{name.replace('`', '``')}`"
+
+# Construire la requête CREATE TABLE avec les noms de colonnes échappés
+create_table_query = f"CREATE TABLE IF NOT EXISTS diabete_data ({', '.join([f'{escape_column_name(header)} VARCHAR(255)' for header in headers])})"
+
+# Exécuter la requête pour créer la table
+cursor.execute(create_table_query)
+
+# Modifier la requête d'insertion pour utiliser les noms de colonnes échappés
+insert_query = f"INSERT INTO diabete_data ({', '.join(escape_column_name(header) for header in headers)}) VALUES ({', '.join(['%s' for _ in headers])})"
+
+# Insérer les données
+with open(OUTPUT_FILE, 'r') as file:
+    csv_data = csv.reader(file)
+    next(csv_data)  # Sauter les en-têtes
+    for row in csv_data:
+        cursor.execute(insert_query, row)
+
+
+# Valider les changements
+db.commit()
+
+# Fermer la connexion
+cursor.close()
+db.close()
+
+print("Table créée et données insérées avec succès dans diabete_data.")
+
