@@ -4,10 +4,51 @@ import glob
 import os
 import numpy as np
 import pandas as pd
+import mysql.connector
+import pandas as pd
+
+# Configuration de la connexion MySQL
+DB_NAME = "Diabete_MSPR"
+DB_CONFIG = {
+    "host": "localhost",  # Modifier si nécessaire
+    "user": "root",  # Modifier selon vos identifiants
+    "password": "",  # Modifier selon vos identifiants
+    "database": DB_NAME,
+}
+
+# Connexion au serveur MySQL
+conn = mysql.connector.connect(
+    host=DB_CONFIG["host"], user=DB_CONFIG["user"], password=DB_CONFIG["password"]
+)
+cursor = conn.cursor()
+
+# Création de la base de données si elle n'existe pas
+cursor.execute(f"CREATE DATABASE IF NOT EXISTS {DB_NAME}")
+conn.database = DB_NAME
+
+# Supprimer toutes les tables existantes
+cursor.execute("SET FOREIGN_KEY_CHECKS = 0;")
+cursor.execute("SHOW TABLES;")
+tables = cursor.fetchall()
+for table in tables:
+    cursor.execute(f"DROP TABLE IF EXISTS {table[0]}")
+cursor.execute("SET FOREIGN_KEY_CHECKS = 1;")
+
+# Lire le fichier SQL et exécuter les requêtes
+with open("Diabete_MSPR-1740578494.sql", "r") as sql_file:
+    sql_script = sql_file.read()
+    for statement in sql_script.split(";"):
+        if statement.strip():
+            cursor.execute(statement)
+
+conn.commit()
 
 # Spécifier le chemin du répertoire contenant les fichiers CSV
 INPUT_DIRECTORY = "./DATASETS_ORIGINE/*.csv"  # Remplacer par le chemin du répertoire
 OUTPUT_FILE = "fichier_sortie_v8.csv"  # Nom du fichier de sortie
+
+# Inititalisation de la connexion de la base de données
+
 
 # Utiliser glob pour récupérer tous les fichiers CSV dans le répertoire spécifié
 csv_files = glob.glob(INPUT_DIRECTORY)
@@ -136,3 +177,117 @@ else:
 # Enregistrer le DataFrame fusionné dans un nouveau fichier CSV
 df_fusionne.to_csv(OUTPUT_FILE, index=False)
 print(f"Données fusionnées enregistrées dans {OUTPUT_FILE}")
+
+# Charger les données depuis le CSV
+
+
+def insert_data(table_name, columns, data):
+    placeholders = ", ".join(["%s"] * len(columns))
+    column_names = ", ".join(columns)
+    query = f"INSERT INTO {table_name} ({column_names}) VALUES ({placeholders})"
+    cursor.executemany(query, data)
+    conn.commit()
+
+
+# Insérer les données dans Patient_table
+if all(
+    col in df_fusionne.columns
+    for col in [
+        "age",
+        "gender",
+        "height",
+        "weight",
+        "frame",
+        "waist",
+        "hip",
+        "location",
+    ]
+):
+    patient_data = df_fusionne[
+        ["age", "gender", "height", "weight", "frame", "waist", "hip", "location"]
+    ].values.tolist()
+    insert_data(
+        "Patient_table",
+        ["age", "gender", "height", "weight", "frame", "waist", "hip", "location"],
+        patient_data,
+    )
+
+# Insérer les données dans medical_history
+if all(
+    col in df_fusionne.columns
+    for col in [
+        "pregnancies",
+        "glucose",
+        "bloodpressure",
+        "skinthickness",
+        "insulin",
+        "bodymassindex",
+        "diabetespedigreefunction",
+        "glyhb",
+    ]
+):
+    medical_data = df_fusionne[
+        [
+            "pregnancies",
+            "glucose",
+            "bloodpressure",
+            "skinthickness",
+            "insulin",
+            "bodymassindex",
+            "diabetespedigreefunction",
+            "glyhb",
+        ]
+    ].values.tolist()
+    insert_data(
+        "medical_history",
+        [
+            "pregnancies",
+            "glucose",
+            "bloodpressure",
+            "skinthickness",
+            "insulin",
+            "bodymassindex",
+            "diabetespedigreefunction",
+            "glycatedhemoglobine",
+        ],
+        medical_data,
+    )
+
+# Insérer les données dans cholesterol_bp
+if all(
+    col in df_fusionne.columns
+    for col in [
+        "cholesterol",
+        "stabilizedglucide",
+        "hughdensitylipoprotein",
+        "ratioglucoseinsuline",
+    ]
+):
+    cholesterol_data = df_fusionne[
+        [
+            "cholesterol",
+            "stabilizedglucide",
+            "hughdensitylipoprotein",
+            "ratioglucoseinsuline",
+        ]
+    ].values.tolist()
+    insert_data(
+        "cholesterol_bp",
+        [
+            "cholesterol",
+            "stabilizedglucide",
+            "hughdensitylipoprotein",
+            "ratioglucoseinsuline",
+        ],
+        cholesterol_data,
+    )
+
+# Insérer les données dans diabetes_diagnosis
+if "diabete" in df_fusionne.columns:
+    diagnosis_data = df_fusionne[["diabete"]].values.tolist()
+    insert_data("diabetes_diagnosis", ["diabete"], diagnosis_data)
+
+# Fermeture de la connexion
+cursor.close()
+conn.close()
+print("Base de données mise à jour avec succès !")
