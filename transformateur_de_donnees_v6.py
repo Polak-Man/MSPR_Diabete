@@ -9,7 +9,7 @@ import pandas as pd
 
 # Spécifier le chemin du répertoire contenant les fichiers CSV
 INPUT_DIRECTORY = "./DATASETS_ORIGINE/*.csv"  # Remplacer par le chemin du répertoire
-OUTPUT_FILE = "fichier_sortie_v8.csv"  # Nom du fichier de sortie
+OUTPUT_FILE = "fichier_sortie.csv"  # Nom du fichier de sortie
 
 # Utiliser glob pour récupérer tous les fichiers CSV dans le répertoire spécifié
 csv_files = glob.glob(INPUT_DIRECTORY)
@@ -114,6 +114,8 @@ if all(col in df_fusionne.columns for col in ["bloodpressure", "bp.1s", "bp.1d"]
         ),
         axis=1,
     )
+
+    df_fusionne = df_fusionne[df_fusionne["glyhb"] != "Na"]
 
     # Remplacer les valeurs 'Na' dans la colonne bloodpressure
     df_fusionne.loc[df_fusionne["bloodpressure"] == "Na", "bloodpressure"] = (
