@@ -63,7 +63,7 @@ else:
         )
     
         # Appliquer la condition pour créer la colonne "diabete"
-        df_fusionne["diabete"] = np.where(condition, "Oui", "Non")
+        df_fusionne["diabete"] = np.where(condition, "1", "0")
 
         # Si vous souhaitez supprimer les lignes qui ne remplissent pas les critères, conservez cette ligne
         # df_fusionne = df_fusionne[condition]
