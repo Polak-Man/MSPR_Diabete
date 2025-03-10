@@ -6,15 +6,13 @@ import mysql.connector
 import csv
 import numpy as np
 import pandas as pd
-import mysql.connector
-import pandas as pd
 
 # Configuration de la connexion MySQL
-DB_NAME = "Diabete_MSPR"
+DB_NAME = "diabete_mspr"
 DB_CONFIG = {
-    "host": "localhost",  # Modifier si nécessaire
-    "user": "root",  # Modifier selon vos identifiants
-    "password": "",  # Modifier selon vos identifiants
+    "host": "localhost",
+    "user": "root",
+    "password": "",
     "database": DB_NAME,
 }
 
