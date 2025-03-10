@@ -159,6 +159,28 @@ else:
     )
 
 
+    # Liste des colonnes à convertir en numérique
+colonnes_a_convertir = [
+    "chol",
+    "glyhb",
+    "hdl",
+    "height",
+    "hip",
+    "id",
+    "ratio",
+    "stab.glu",
+    "waist",
+    "weight",
+    "time.ppn"
+]
+
+# Convertir les colonnes spécifiées en numérique
+for col in colonnes_a_convertir:
+    if col in df_fusionne.columns:
+        df_fusionne[col] = pd.to_numeric(df_fusionne[col].replace("Na", pd.NA), errors='coerce')
+    else:
+        print(f"Avertissement : La colonne '{col}' est manquante dans le DataFrame fusionné.")
+
 # Enregistrer le DataFrame fusionné dans un nouveau fichier CSV
 df_fusionne.to_csv(OUTPUT_FILE, index=False)
 print(f"Données fusionnées enregistrées dans {OUTPUT_FILE}")
