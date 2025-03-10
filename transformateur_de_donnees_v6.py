@@ -80,6 +80,8 @@ else:
     # Remplacer les cases vides par "Na" dans le dataframe fusionné
     df_fusionne = df_fusionne.fillna("Na")
 
+    df_fusionne = df_fusionne[df_fusionne["glyhb"] != "Na"]
+    
     # Remplacer les lignes vides de la colonne "gender" par "female"
     if "gender" in df_fusionne.columns:
         df_fusionne["gender"] = df_fusionne["gender"].fillna(
