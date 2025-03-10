@@ -4,8 +4,8 @@ import mysql.connector
 # Connexion à la base de données
 conn = mysql.connector.connect(
     host="localhost",
-    user="root",  # Remplace par ton utilisateur
-    password="",  # Remplace par ton mot de passe
+    user="root",  
+    password="",
     database="diabete_mspr",
 )
 cursor = conn.cursor()
@@ -13,7 +13,7 @@ cursor = conn.cursor()
 # Charger le fichier CSV
 df = pd.read_csv("fichier_sortie_v8.csv", sep=",")
 
-# Remplacer les valeurs "NA" ou "Na" par None
+# Remplacer les valeurs "NA" ou "Na" par None pour db
 df = df.replace(["NA", "Na"], None)
 
 
