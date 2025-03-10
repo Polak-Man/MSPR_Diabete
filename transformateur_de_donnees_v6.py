@@ -87,13 +87,22 @@ else:
         )
         df_fusionne["pregnant"] = "Na"
 
-# Mettre "pregnant" à "0" si "gender" est "male"
-if "gender" in df_fusionne.columns:
-    df_fusionne.loc[df_fusionne["gender"] == "male", "pregnant"] = "0"
+    # Mettre "pregnant" à "0" si "gender" est "male"
+    if "gender" in df_fusionne.columns:
+        df_fusionne.loc[df_fusionne["gender"] == "male", "pregnant"] = "0"
+    else:
+        print(
+            "Avertissement : La colonne 'gender' est manquante dans le DataFrame fusionné."
+        )
+
+# Mettre "gender" à "female" si "gender" est "Na" et "pregnant" est "1"
+if "gender" in df_fusionne.columns and "pregnant" in df_fusionne.columns:
+    df_fusionne.loc[
+        (df_fusionne["gender"] == "Na") & (df_fusionne["pregnant"] == "1"),
+        "gender"
+    ] = "female"
 else:
-    print(
-        "Avertissement : La colonne 'gender' est manquante dans le DataFrame fusionné."
-    )
+    print("Avertissement : Les colonnes 'gender' ou 'pregnant' sont manquantes dans le DataFrame fusionné.")
 
     # Remplacer les valeurs 'Na' dans la colonne bloodpressure par la moyenne de bp.1s et bp.1d
 if all(col in df_fusionne.columns for col in ["bloodpressure", "bp.1s", "bp.1d"]):
