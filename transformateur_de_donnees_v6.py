@@ -54,31 +54,23 @@ else:
             "Avertissement : La colonne 'gender' est manquante dans le DataFrame fusionné."
         )
 
-    # Ajouter la colonne "Diabete"
+        # Ajouter la colonne "Diabete"
     if "glyhb" in df_fusionne.columns and "outcome" in df_fusionne.columns:
-        df_fusionne["diabete"] = df_fusionne.apply(
-            lambda row: (
-                "1"
-                if (
-                    pd.to_numeric(row["glyhb"], errors="coerce") >= 6.5
-                    or row["outcome"] == 1
-                )
-                else (
-                    "0"
-                    if (
-                        pd.to_numeric(row["glyhb"], errors="coerce") < 6.5
-                        or row["outcome"] == 0
-                    )
-                    else "Na"
-                )
-            ),
-            axis=1,
+        # Créer une condition pour les lignes à conserver
+        condition = (
+            (pd.to_numeric(df_fusionne["glyhb"], errors="coerce") >= 6.5) | 
+            (df_fusionne["outcome"] == 1)
         )
+    
+        # Appliquer la condition pour créer la colonne "diabete"
+        df_fusionne["diabete"] = np.where(condition, "Oui", "Non")
+
+        # Si vous souhaitez supprimer les lignes qui ne remplissent pas les critères, conservez cette ligne
+        # df_fusionne = df_fusionne[condition]
     else:
         print(
             "Avertissement : Les colonnes 'glyhb' ou 'outcome' sont manquantes dans le DataFrame fusionné."
         )
-        df_fusionne["diabete"] = "Na"
 
     # Ajouter la colonne "Pregnant"
     if "pregnancies" in df_fusionne.columns:
