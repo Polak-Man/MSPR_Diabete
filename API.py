@@ -2,6 +2,13 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List, Union
 import mysql.connector
+import numpy as np
+import pandas as pd
+from sklearn.ensemble import RandomForestRegressor, VotingRegressor
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.svm import SVR
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_absolute_error
 
 app = FastAPI(
     title="Diabetes API",
@@ -18,6 +25,74 @@ def get_db_connection():
         password="",
         database="diabete_mspr",
     )
+
+
+# Fonction pour entraîner les modèles IA
+def train_model():
+    # Récupérer les données nécessaires depuis la base de données
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    cursor.execute(
+        """
+        SELECT age, glucose, bloodpressure, skinthickness, insulin, bodymassindex, diabetespedigreefunction, glycatedhemoglobine, diabete
+        FROM medical_history mh
+        JOIN diabetes_diagnosis dd ON mh.id = dd.id
+        JOIN patient_table pt ON mh.id = pt.id
+    """
+    )
+    data = cursor.fetchall()
+    conn.close()
+
+    # Convertir les données en DataFrame pour l'entraînement
+    df = pd.DataFrame(data)
+
+    # Imputer les valeurs manquantes avec la moyenne
+    df.fillna(df.mean(), inplace=True)
+
+    # Sélectionner les variables d'entrée (features) et la variable cible (target)
+    X = df[
+        [
+            "age",
+            "glucose",
+            "bloodpressure",
+            "skinthickness",
+            "insulin",
+            "bodymassindex",
+            "diabetespedigreefunction",
+            "glycatedhemoglobine",
+        ]
+    ]
+    y = df["diabete"]
+
+    # Diviser les données en données d'entraînement et de test
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42
+    )
+
+    # Créer les modèles
+    rf_model = RandomForestRegressor(n_estimators=100, random_state=42)
+    knn_model = KNeighborsRegressor(n_neighbors=5)
+    svr_model = SVR(kernel="rbf")
+
+    # Créer un modèle d'ensemble (VotingRegressor)
+    ensemble_model = VotingRegressor(
+        estimators=[("rf", rf_model), ("knn", knn_model), ("svr", svr_model)]
+    )
+
+    # Entraîner le modèle ensemble
+    ensemble_model.fit(X_train, y_train)
+
+    # Calculer les erreurs sur l'ensemble de test
+    y_pred = ensemble_model.predict(X_test)
+    mae = mean_absolute_error(y_test, y_pred)
+    print(f"Erreur absolue moyenne sur l'ensemble de test: {mae:.3f}")
+
+    return ensemble_model
+
+
+# Entraîner le modèle au démarrage
+model = train_model()
 
 
 # Modèles Pydantic
@@ -52,6 +127,22 @@ class CholesterolBP(BaseModel):
 
 class DiabetesDiagnosis(BaseModel):
     diabete: bool
+
+
+class PredictionRequest(BaseModel):
+    age: int
+    glucose: float
+    bloodpressure: float
+    skinthickness: float
+    insulin: float
+    bodymassindex: float
+    diabetespedigreefunction: float
+    glycatedhemoglobine: float
+
+
+class DiabetesPredictionResponse(BaseModel):
+    prediction: bool
+    probability: float
 
 
 # Routes CRUD pour Patient_table
@@ -195,105 +286,32 @@ def delete_medical_history(id: int):
     return {"message": "Historique médical supprimé"}
 
 
-# CRUD pour CholesterolBP
-@app.get("/cholesterol_bp", response_model=List[CholesterolBP], tags=["Cholesterol BP"])
-def get_cholesterol_bp():
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM cholesterol_bp")
-    data = cursor.fetchall()
-    conn.close()
-    return data
-
-
-@app.post("/cholesterol_bp", tags=["Cholesterol BP"])
-def add_cholesterol_bp(cholesterol: CholesterolBP):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    sql = "INSERT INTO cholesterol_bp (cholesterol, stabilizedglucide, hughdensitylipoprotein, ratioglucoseinsuline) VALUES (%s, %s, %s, %s)"
-    values = (
-        cholesterol.cholesterol,
-        cholesterol.stabilizedglucide,
-        cholesterol.hughdensitylipoprotein,
-        cholesterol.ratioglucoseinsuline,
+# Routes pour la prédiction de diabète
+@app.post("/predict", response_model=DiabetesPredictionResponse, tags=["Prediction"])
+def predict_diabetes(request: PredictionRequest):
+    input_data = np.array(
+        [
+            [
+                request.age,
+                request.glucose,
+                request.bloodpressure,
+                request.skinthickness,
+                request.insulin,
+                request.bodymassindex,
+                request.diabetespedigreefunction,
+                request.glycatedhemoglobine,
+            ]
+        ]
     )
-    cursor.execute(sql, values)
-    conn.commit()
-    conn.close()
-    return {"message": "Données cholestérol ajoutées"}
 
-
-@app.put("/cholesterol_bp/{id}", tags=["Cholesterol BP"])
-def update_cholesterol_bp(id: int, cholesterol: CholesterolBP):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    sql = "UPDATE cholesterol_bp SET cholesterol=%s, stabilizedglucide=%s, hughdensitylipoprotein=%s, ratioglucoseinsuline=%s WHERE id=%s"
-    values = (
-        cholesterol.cholesterol,
-        cholesterol.stabilizedglucide,
-        cholesterol.hughdensitylipoprotein,
-        cholesterol.ratioglucoseinsuline,
-        id,
+    # Faire la prédiction avec le modèle entraîné
+    prediction = model.predict(input_data)
+    predicted_class = (prediction >= 0.5).astype(
+        int
+    )  # Seuil de 0.5 pour classifier (diabète ou non)
+    return DiabetesPredictionResponse(
+        prediction=bool(predicted_class[0]), probability=prediction[0]
     )
-    cursor.execute(sql, values)
-    conn.commit()
-    conn.close()
-    return {"message": "Données cholestérol mises à jour"}
-
-
-@app.delete("/cholesterol_bp/{id}", tags=["Cholesterol BP"])
-def delete_cholesterol_bp(id: int):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM cholesterol_bp WHERE id=%s", (id,))
-    conn.commit()
-    conn.close()
-    return {"message": "Données cholestérol supprimées"}
-
-
-# CRUD pour DiabetesDiagnosis
-@app.get("/diagnoses", response_model=List[DiabetesDiagnosis], tags=["Diagnoses"])
-def get_diagnoses():
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM diabetes_diagnosis")
-    data = cursor.fetchall()
-    conn.close()
-    return data
-
-
-@app.post("/diagnoses", tags=["Diagnoses"])
-def add_diagnosis(diagnosis: DiabetesDiagnosis):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    sql = "INSERT INTO diabetes_diagnosis (diabete) VALUES (%s)"
-    values = (diagnosis.diabete,)
-    cursor.execute(sql, values)
-    conn.commit()
-    conn.close()
-    return {"message": "Diagnostic ajouté"}
-
-
-@app.put("/diagnoses/{id}", tags=["Diagnoses"])
-def update_diagnosis(id: int, diagnosis: DiabetesDiagnosis):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    sql = "UPDATE diabetes_diagnosis SET diabete=%s WHERE id=%s"
-    values = (diagnosis.diabete, id)
-    cursor.execute(sql, values)
-    conn.commit()
-    conn.close()
-    return {"message": "Diagnostic mis à jour"}
-
-
-@app.delete("/diagnoses/{id}", tags=["Diagnoses"])
-def delete_diagnosis(id: int):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM diabetes_diagnosis WHERE id=%s", (id,))
-    conn.commit()
-    conn.close()
-    return {"message": "Diagnostic supprimé"}
 
 
 # Lancer le serveur
