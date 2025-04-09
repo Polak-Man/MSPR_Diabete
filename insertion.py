@@ -1,14 +1,48 @@
 import pandas as pd
 import mysql.connector
+import os
 
-# Connexion à la base de données
-conn = mysql.connector.connect(
-    host="localhost",
-    user="root",  
-    password="",
-    database="diabete_mspr",
-)
+
+# Fonction pour exécuter un fichier SQL
+def execute_sql_file(cursor, filepath):
+    with open(filepath, "r", encoding="utf-8") as file:
+        sql = file.read()
+        for statement in sql.split(";"):
+            statement = statement.strip()
+            if statement:
+                try:
+                    cursor.execute(statement)
+                except Exception as e:
+                    print(f"Erreur lors de l'exécution de la requête : {e}")
+
+
+# Connexion initiale sans spécifier de base de données
+conn = mysql.connector.connect(host="localhost", user="root", password="")
 cursor = conn.cursor()
+
+# Vérifier si la base de données existe
+cursor.execute("SHOW DATABASES LIKE 'diabete_mspr'")
+result = cursor.fetchone()
+
+# Si la base de données n'existe pas, la créer à partir du fichier SQL
+if not result:
+    print("Base de données 'diabete_mspr' non trouvée. Création via le fichier SQL...")
+
+    # Vérifier que le fichier existe
+    sql_file_path = "Diabete_MSPR-1740578494.sql"
+    if os.path.exists(sql_file_path):
+        execute_sql_file(cursor, sql_file_path)
+        print(
+            f"La base de données et les tables ont été créées à partir du fichier {sql_file_path}."
+        )
+    else:
+        print(f"Le fichier SQL {sql_file_path} est introuvable.")
+        cursor.close()
+        conn.close()
+        exit(1)  # Arrêter l'exécution si le fichier SQL est manquant
+
+# Sélectionner la base de données après sa création
+cursor.execute("USE diabete_mspr")
 
 # Charger le fichier CSV
 df = pd.read_csv("fichier_sortie_v8.csv", sep=",")
@@ -18,18 +52,20 @@ df = df.replace(["NA", "Na"], None)
 
 
 def safe_float(value):
-    """Convertit en float si possible, sinon renvoie None"""
+    """Convertit une valeur en float si possible, sinon renvoie None"""
     try:
-        return float(value) if value is not None else None
+        return float(value) if pd.notna(value) and value != "" else None
     except ValueError:
+        print(f"Valeur non convertible en float: {value}")
         return None
 
 
 def safe_int(value):
     """Convertit en int si possible, sinon renvoie None"""
     try:
-        return int(value) if value is not None else None
+        return int(value) if pd.notna(value) and value != "" else None
     except ValueError:
+        print(f"Valeur non convertible en int: {value}")
         return None
 
 
@@ -73,7 +109,7 @@ def insert_medical_history(row, patient_id):
         safe_float(row["insulin"]),
         safe_float(row["bmi"]),
         safe_float(row["diabetespedigreefunction"]),
-        safe_float(row.get("glycatedhemoglobine", None)),
+        safe_float(row.get("glyhb", None)),
     )
     try:
         cursor.execute(sql, values)
@@ -90,10 +126,10 @@ def insert_cholesterol_bp(row, patient_id):
     """
     values = (
         patient_id,
-        safe_float(row.get("cholesterol", None)),
-        safe_float(row.get("stabilizedglucide", None)),
-        safe_float(row.get("hughdensitylipoprotein", None)),
-        safe_float(row.get("ratioglucoseinsuline", None)),
+        safe_float(row.get("chol", None)),
+        safe_float(row.get("stab.glu", None)),
+        safe_float(row.get("hdl", None)),
+        safe_float(row.get("ratio", None)),
     )
     try:
         cursor.execute(sql, values)

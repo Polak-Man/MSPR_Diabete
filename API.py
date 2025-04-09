@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Union
 import mysql.connector
 
 app = FastAPI(
@@ -33,21 +33,21 @@ class Patient(BaseModel):
 
 
 class MedicalHistory(BaseModel):
-    pregnancies: int
-    glucose: int
-    bloodpressure: float
-    skinthickness: float
-    insulin: float
-    bodymassindex: float
-    diabetespedigreefunction: float
-    glycatedhemoglobine: float
+    pregnancies: Optional[int] = None
+    glucose: Optional[Union[int, float]] = None
+    bloodpressure: Optional[Union[int, float]] = None
+    skinthickness: Optional[Union[int, float]] = None
+    insulin: Optional[Union[int, float]] = None
+    bodymassindex: Optional[Union[int, float]] = None
+    diabetespedigreefunction: Optional[Union[int, float]] = None
+    glycatedhemoglobine: Optional[Union[int, float]] = None
 
 
 class CholesterolBP(BaseModel):
-    cholesterol: float
-    stabilizedglucide: float
-    hughdensitylipoprotein: float
-    ratioglucoseinsuline: float
+    cholesterol: Optional[Union[int, float]] = None
+    stabilizedglucide: Optional[Union[int, float]] = None
+    hughdensitylipoprotein: Optional[Union[int, float]] = None
+    ratioglucoseinsuline: Optional[Union[int, float]] = None
 
 
 class DiabetesDiagnosis(BaseModel):
