@@ -11,6 +11,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error
 import os
 import joblib
+from sklearn.pipeline import make_pipeline
+from sklearn.impute import SimpleImputer
 
 app = FastAPI(
     title="Diabetes API",
@@ -33,6 +35,7 @@ def get_db_connection():
 
 
 # Fonction pour entraîner les modèles IA
+# Fonction pour entraîner les modèles IA avec imputation conditionnelle dans un pipeline
 def train_model():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -49,8 +52,6 @@ def train_model():
     conn.close()
 
     df = pd.DataFrame(data)
-    df.fillna(df.mean(), inplace=True)
-
     X = df[
         [
             "age",
@@ -65,10 +66,12 @@ def train_model():
     ]
     y = df["diabete"]
 
+    # Séparation des données en training et test
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42
     )
 
+    # Création du pipeline avec imputation et modèle d'ensemble
     rf_model = RandomForestRegressor(n_estimators=100, random_state=42)
     knn_model = KNeighborsRegressor(n_neighbors=5)
     svr_model = SVR(kernel="rbf")
@@ -77,15 +80,27 @@ def train_model():
         estimators=[("rf", rf_model), ("knn", knn_model), ("svr", svr_model)]
     )
 
-    ensemble_model.fit(X_train, y_train)
-    y_pred = ensemble_model.predict(X_test)
+    # Pipeline avec imputation
+    pipeline = make_pipeline(
+        SimpleImputer(
+            strategy="mean"
+        ),  # Imputation des valeurs manquantes avec la moyenne
+        ensemble_model,  # Modèle d'ensemble
+    )
+
+    # Entraînement du modèle avec le pipeline
+    pipeline.fit(X_train, y_train)
+
+    # Prédictions sur les données de test
+    y_pred = pipeline.predict(X_test)
     mae = mean_absolute_error(y_test, y_pred)
     print(f"Erreur absolue moyenne sur l'ensemble de test: {mae:.3f}")
 
-    return ensemble_model
+    return pipeline
 
 
 # Fonction pour charger tous les fichiers .joblib dans le dossier joblib
+# Charger les modèles au démarrage (mettre à jour si nécessaire)
 def load_models_from_joblib_folder(folder_path="joblib"):
     models = {}
     for filename in os.listdir(folder_path):
@@ -93,7 +108,9 @@ def load_models_from_joblib_folder(folder_path="joblib"):
             model_name = filename.split(".")[0]  # Utiliser le nom du fichier comme clé
             model_path = os.path.join(folder_path, filename)
             try:
-                model = joblib.load(model_path)
+                model = joblib.load(
+                    model_path
+                )  # Charger un modèle pipeline directement
                 models[model_name] = model
                 print(f"Modèle {model_name} chargé avec succès.")
             except Exception as e:
@@ -105,8 +122,7 @@ def load_models_from_joblib_folder(folder_path="joblib"):
 models = load_models_from_joblib_folder()
 
 
-# Fonction pour prédire tous les patients et remplir le cache
-def predict_all_patients(model):
+def predict_all_patients_for_all_models(models):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute(
@@ -120,33 +136,83 @@ def predict_all_patients(model):
     records = cursor.fetchall()
     conn.close()
 
-    predictions = {}
-    for row in records:
-        pid = row["id"]
-        input_data = np.array(
-            [
+    predictions_by_model = {}
+
+    for model_name, model in models.items():
+        predictions = {}
+        for row in records:
+            pid = row["id"]
+            input_data = np.array(
                 [
-                    row["age"],
-                    row["glucose"],
-                    row["bloodpressure"],
-                    row["skinthickness"],
-                    row["insulin"],
-                    row["bodymassindex"],
-                    row["diabetespedigreefunction"],
-                    row["glycatedhemoglobine"],
+                    [
+                        row["age"],
+                        row["glucose"],
+                        row["bloodpressure"],
+                        row["skinthickness"],
+                        row["insulin"],
+                        row["bodymassindex"],
+                        row["diabetespedigreefunction"],
+                        row["glycatedhemoglobine"],
+                    ]
                 ]
-            ]
-        )
-        pred = model.predict(input_data)[0]
-        predictions[pid] = {"prediction": bool(pred >= 0.5), "probability": float(pred)}
-    return predictions
+            )
+            try:
+                pred = model.predict(input_data)[0]
+                predictions[pid] = {
+                    "prediction": bool(pred >= 0.5),
+                    "probability": float(pred),
+                }
+            except Exception as e:
+                print(
+                    f"Erreur de prédiction pour le modèle {model_name}, patient {pid} : {e}"
+                )
+        predictions_by_model[model_name] = predictions
+
+    return predictions_by_model
+
+
+# Fonction pour prédire tous les patients et remplir le cache
+# def predict_all_patients(model):
+#     conn = get_db_connection()
+#     cursor = conn.cursor(dictionary=True)
+#     cursor.execute(
+#         """
+#         SELECT pt.id, age, glucose, bloodpressure, skinthickness, insulin,
+#                bodymassindex, diabetespedigreefunction, glycatedhemoglobine
+#         FROM patient_table pt
+#         JOIN medical_history mh ON pt.id = mh.id
+#     """
+#     )
+#     records = cursor.fetchall()
+#     conn.close()
+
+#     predictions = {}
+#     for row in records:
+#         pid = row["id"]
+#         input_data = np.array(
+#             [
+#                 [
+#                     row["age"],
+#                     row["glucose"],
+#                     row["bloodpressure"],
+#                     row["skinthickness"],
+#                     row["insulin"],
+#                     row["bodymassindex"],
+#                     row["diabetespedigreefunction"],
+#                     row["glycatedhemoglobine"],
+#                 ]
+#             ]
+#         )
+#         pred = model.predict(input_data)[0]
+#         predictions[pid] = {"prediction": bool(pred >= 0.5), "probability": float(pred)}
+#     return predictions
 
 
 # Entraînement et prédictions au démarrage
-model = (
-    train_model()
-)  # Cette ligne peut être retirée si tu veux utiliser les modèles .joblib directement
-patient_predictions = predict_all_patients(model)
+# model = (
+#     train_model()
+# )  # Cette ligne peut être retirée si tu veux utiliser les modèles .joblib directement
+patient_predictions = predict_all_patients_for_all_models(models)
 
 
 # Modèles Pydantic
@@ -330,10 +396,86 @@ def delete_medical_history(id: int):
 
 
 # Prédiction à la volée
+# Prédiction avec le pipeline, en prenant en compte l'imputation des NaN
+# @app.post(
+#     "/predict/diabete", response_model=DiabetesPredictionResponse, tags=["Prediction"]
+# )
+# def predict_diabetes_with_pipeline(request: PredictionRequest):
+#     input_data = np.array(
+#         [
+#             [
+#                 request.age,
+#                 request.glucose,
+#                 request.bloodpressure,
+#                 request.skinthickness,
+#                 request.insulin,
+#                 request.bodymassindex,
+#                 request.diabetespedigreefunction,
+#                 request.glycatedhemoglobine,
+#             ]
+#         ]
+#     )
+#     # Utiliser le pipeline pour la prédiction
+#     prediction = models.predict(input_data)
+#     predicted_class = (prediction >= 0.5).astype(int)
+#     return DiabetesPredictionResponse(
+#         prediction=bool(predicted_class[0]), probability=prediction[0]
+#     )
+
+
+# Prédictions pré-calculées
+@app.get("/predictions", tags=["Prediction"])
+def get_all_predictions():
+    return patient_predictions
+
+
+# @app.get("/predictions/{id}", tags=["Prediction"])
+# def get_predictions(id: int):
+#     # Récupérer les données du patient depuis la base de données
+#     conn = get_db_connection()
+#     cursor = conn.cursor(dictionary=True)
+#     cursor.execute("SELECT * FROM patient_table WHERE id=%s", (id,))
+#     patient_data = cursor.fetchone()
+#     conn.close()
+
+#     if not patient_data:
+#         raise HTTPException(status_code=404, detail="Patient non trouvé")
+
+#     # Calculer les prédictions pour chaque modèle
+#     predictions = {}
+#     features = np.array(
+#         [
+#             patient_data["glucose"],
+#             patient_data["blood_pressure"],
+#             patient_data["skin_thickness"],
+#             patient_data["insulin"],
+#             patient_data["bmi"],
+#             patient_data["dpf"],
+#             patient_data["age"],
+#             patient_data["hba1c"],
+#         ]
+#     ).reshape(1, -1)
+
+#     for model_name, model in models.items():
+#         prediction = model.predict(features)  # Prédiction du modèle
+#         predictions[model_name] = prediction[0]
+
+#     return predictions
+
+
 @app.post(
-    "/predict/diabete", response_model=DiabetesPredictionResponse, tags=["Prediction"]
+    "/predict/diabete/{model_name}",
+    response_model=DiabetesPredictionResponse,
+    tags=["Prediction"],
 )
-def predict_diabetes(request: PredictionRequest):
+def predict_diabetes_with_specific_model(model_name: str, request: PredictionRequest):
+    print("Modèles chargés :", list(models.keys()))
+    model = models.get(model_name)
+    if model is None:
+        raise HTTPException(
+            status_code=404, detail=f"Modèle '{model_name}' introuvable"
+        )
+
     input_data = np.array(
         [
             [
@@ -348,6 +490,7 @@ def predict_diabetes(request: PredictionRequest):
             ]
         ]
     )
+
     prediction = model.predict(input_data)
     predicted_class = (prediction >= 0.5).astype(int)
     return DiabetesPredictionResponse(
@@ -355,26 +498,10 @@ def predict_diabetes(request: PredictionRequest):
     )
 
 
-# Prédictions pré-calculées
-@app.get("/predictions", tags=["Prediction"])
-def get_all_predictions():
-    return patient_predictions
-
-
-@app.get("/predictions/{id}", tags=["Prediction"])
-def get_prediction_by_id(id: int):
-    if id in patient_predictions:
-        return patient_predictions[id]
-    else:
-        raise HTTPException(
-            status_code=404, detail="Patient non trouvé ou sans données médicales"
-        )
-
-
 @app.post("/predictions/refresh", tags=["Prediction"])
 def refresh_predictions():
     global patient_predictions
-    patient_predictions = predict_all_patients(model)
+    patient_predictions = predict_all_patients_for_all_models(models)
     return {"message": "Prédictions régénérées", "count": len(patient_predictions)}
 
 
