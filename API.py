@@ -434,9 +434,23 @@ def delete_medical_history(id: int):
 #     )
 
 
-# Prédictions pré-calculées
+# Exemple de données de modèles
+patient_predictions = [
+    "bloodpressure_model", 
+    "bmi_model", 
+    "diabetes_model", 
+    "dpf_model", 
+    "glucose_model", 
+    "hba1c_model", 
+    "insulin_model", 
+    "risk_score_model", 
+    "skinthickness_model"
+    ]  # Assurez-vous que c'est un tableau
+
 @app.get("/models", tags=["Prediction"])
 def get_all_predictions():
+    if not isinstance(patient_predictions, list):
+        raise HTTPException(status_code=500, detail="Les modèles ne sont pas disponibles.")
     return patient_predictions
 
 
