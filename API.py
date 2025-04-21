@@ -424,7 +424,7 @@ def delete_medical_history(id: int):
 
 
 # Prédictions pré-calculées
-@app.get("/predictions", tags=["Prediction"])
+@app.get("/models", tags=["Prediction"])
 def get_all_predictions():
     return patient_predictions
 
