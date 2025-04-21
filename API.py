@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List, Union
 import mysql.connector
@@ -18,6 +19,16 @@ app = FastAPI(
     title="Diabetes API",
     description="API pour gérer les patients et diagnostics du diabète",
     version="1.0.0",
+)
+
+# Configuration CORS
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Remplacez par les origines spécifiques si nécessaire
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Cache pour les prédictions
