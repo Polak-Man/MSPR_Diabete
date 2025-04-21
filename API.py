@@ -9,12 +9,17 @@ from sklearn.neighbors import KNeighborsRegressor
 from sklearn.svm import SVR
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error
+import os
+import joblib
 
 app = FastAPI(
     title="Diabetes API",
     description="API pour gérer les patients et diagnostics du diabète",
     version="1.0.0",
 )
+
+# Cache pour les prédictions
+patient_predictions = {}
 
 
 # Connexion à la base de données
@@ -29,7 +34,6 @@ def get_db_connection():
 
 # Fonction pour entraîner les modèles IA
 def train_model():
-    # Récupérer les données nécessaires depuis la base de données
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
@@ -44,13 +48,9 @@ def train_model():
     data = cursor.fetchall()
     conn.close()
 
-    # Convertir les données en DataFrame pour l'entraînement
     df = pd.DataFrame(data)
-
-    # Imputer les valeurs manquantes avec la moyenne
     df.fillna(df.mean(), inplace=True)
 
-    # Sélectionner les variables d'entrée (features) et la variable cible (target)
     X = df[
         [
             "age",
@@ -65,25 +65,19 @@ def train_model():
     ]
     y = df["diabete"]
 
-    # Diviser les données en données d'entraînement et de test
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42
     )
 
-    # Créer les modèles
     rf_model = RandomForestRegressor(n_estimators=100, random_state=42)
     knn_model = KNeighborsRegressor(n_neighbors=5)
     svr_model = SVR(kernel="rbf")
 
-    # Créer un modèle d'ensemble (VotingRegressor)
     ensemble_model = VotingRegressor(
         estimators=[("rf", rf_model), ("knn", knn_model), ("svr", svr_model)]
     )
 
-    # Entraîner le modèle ensemble
     ensemble_model.fit(X_train, y_train)
-
-    # Calculer les erreurs sur l'ensemble de test
     y_pred = ensemble_model.predict(X_test)
     mae = mean_absolute_error(y_test, y_pred)
     print(f"Erreur absolue moyenne sur l'ensemble de test: {mae:.3f}")
@@ -91,8 +85,68 @@ def train_model():
     return ensemble_model
 
 
-# Entraîner le modèle au démarrage
-model = train_model()
+# Fonction pour charger tous les fichiers .joblib dans le dossier joblib
+def load_models_from_joblib_folder(folder_path="joblib"):
+    models = {}
+    for filename in os.listdir(folder_path):
+        if filename.endswith(".joblib"):
+            model_name = filename.split(".")[0]  # Utiliser le nom du fichier comme clé
+            model_path = os.path.join(folder_path, filename)
+            try:
+                model = joblib.load(model_path)
+                models[model_name] = model
+                print(f"Modèle {model_name} chargé avec succès.")
+            except Exception as e:
+                print(f"Erreur lors du chargement du modèle {model_name}: {e}")
+    return models
+
+
+# Charger les modèles au démarrage
+models = load_models_from_joblib_folder()
+
+
+# Fonction pour prédire tous les patients et remplir le cache
+def predict_all_patients(model):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        """
+        SELECT pt.id, age, glucose, bloodpressure, skinthickness, insulin,
+               bodymassindex, diabetespedigreefunction, glycatedhemoglobine
+        FROM patient_table pt
+        JOIN medical_history mh ON pt.id = mh.id
+    """
+    )
+    records = cursor.fetchall()
+    conn.close()
+
+    predictions = {}
+    for row in records:
+        pid = row["id"]
+        input_data = np.array(
+            [
+                [
+                    row["age"],
+                    row["glucose"],
+                    row["bloodpressure"],
+                    row["skinthickness"],
+                    row["insulin"],
+                    row["bodymassindex"],
+                    row["diabetespedigreefunction"],
+                    row["glycatedhemoglobine"],
+                ]
+            ]
+        )
+        pred = model.predict(input_data)[0]
+        predictions[pid] = {"prediction": bool(pred >= 0.5), "probability": float(pred)}
+    return predictions
+
+
+# Entraînement et prédictions au démarrage
+model = (
+    train_model()
+)  # Cette ligne peut être retirée si tu veux utiliser les modèles .joblib directement
+patient_predictions = predict_all_patients(model)
 
 
 # Modèles Pydantic
@@ -118,15 +172,9 @@ class MedicalHistory(BaseModel):
     glycatedhemoglobine: Optional[Union[int, float]] = None
 
 
-class CholesterolBP(BaseModel):
-    cholesterol: Optional[Union[int, float]] = None
-    stabilizedglucide: Optional[Union[int, float]] = None
-    hughdensitylipoprotein: Optional[Union[int, float]] = None
-    ratioglucoseinsuline: Optional[Union[int, float]] = None
-
-
-class DiabetesDiagnosis(BaseModel):
-    diabete: bool
+class DiabetesPredictionResponse(BaseModel):
+    prediction: bool
+    probability: float
 
 
 class PredictionRequest(BaseModel):
@@ -140,12 +188,7 @@ class PredictionRequest(BaseModel):
     glycatedhemoglobine: float
 
 
-class DiabetesPredictionResponse(BaseModel):
-    prediction: bool
-    probability: float
-
-
-# Routes CRUD pour Patient_table
+# CRUD Patient
 @app.get("/patients", response_model=List[Patient], tags=["Patients"])
 def get_patients():
     conn = get_db_connection()
@@ -215,7 +258,7 @@ def delete_patient(id: int):
     return {"message": "Patient supprimé"}
 
 
-# Routes CRUD pour MedicalHistory
+# CRUD Medical History
 @app.get(
     "/medical_history", response_model=List[MedicalHistory], tags=["Medical History"]
 )
@@ -286,8 +329,10 @@ def delete_medical_history(id: int):
     return {"message": "Historique médical supprimé"}
 
 
-# Routes pour la prédiction de diabète
-@app.post("/predict", response_model=DiabetesPredictionResponse, tags=["Prediction"])
+# Prédiction à la volée
+@app.post(
+    "/predict/diabete", response_model=DiabetesPredictionResponse, tags=["Prediction"]
+)
 def predict_diabetes(request: PredictionRequest):
     input_data = np.array(
         [
@@ -303,18 +348,37 @@ def predict_diabetes(request: PredictionRequest):
             ]
         ]
     )
-
-    # Faire la prédiction avec le modèle entraîné
     prediction = model.predict(input_data)
-    predicted_class = (prediction >= 0.5).astype(
-        int
-    )  # Seuil de 0.5 pour classifier (diabète ou non)
+    predicted_class = (prediction >= 0.5).astype(int)
     return DiabetesPredictionResponse(
         prediction=bool(predicted_class[0]), probability=prediction[0]
     )
 
 
-# Lancer le serveur
+# Prédictions pré-calculées
+@app.get("/predictions", tags=["Prediction"])
+def get_all_predictions():
+    return patient_predictions
+
+
+@app.get("/predictions/{id}", tags=["Prediction"])
+def get_prediction_by_id(id: int):
+    if id in patient_predictions:
+        return patient_predictions[id]
+    else:
+        raise HTTPException(
+            status_code=404, detail="Patient non trouvé ou sans données médicales"
+        )
+
+
+@app.post("/predictions/refresh", tags=["Prediction"])
+def refresh_predictions():
+    global patient_predictions
+    patient_predictions = predict_all_patients(model)
+    return {"message": "Prédictions régénérées", "count": len(patient_predictions)}
+
+
+# Lancer le serveur si exécution directe
 if __name__ == "__main__":
     import uvicorn
 

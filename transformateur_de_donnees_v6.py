@@ -229,4 +229,3 @@ cursor.close()
 db.close()
 
 print("Table créée et données insérées avec succès dans diabete_data.")
-
